@@ -1,0 +1,7 @@
+daemon
+demo_worker
+*.dSYM
+server_runtime/
+__pycache__/
+*.pyc
+.env
