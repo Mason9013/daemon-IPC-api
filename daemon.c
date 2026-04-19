@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 //std c library includes
 #include <errno.h>
 #include <limits.h>
