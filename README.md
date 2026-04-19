@@ -6,7 +6,7 @@ A C-based daemon that executes commands using FIFO-based interprocess communicat
 
 👉 https://daemon-ipc-api.onrender.com
 
-The deployed versoin runs the same system architecture, with the daemon spawning worker processes and managing communication through named pipes.
+The deployed version runs the same system architecture, with the daemon spawning worker processes and managing communication through named pipes.
 
 To use:
 in command type: echo, reverse or count
@@ -59,7 +59,7 @@ in terminal (in root of project):
 3. run: make
 4. run: ./scripts/start.sh
     - you should see: Starting daemon...
-    - note: terminal will hang; daemon is running in backround
+    - note: terminal will hang; daemon is running in background
     - you will need to open a new terminal (and go to project   folder) for step 5
 
 5. start API server, run: python -m uvicorn app:app --reload
@@ -69,6 +69,6 @@ in terminal (in root of project):
 7. test command: "command" available commands: reverse, count, echo. text: "string" can be any letters
     - go to: POST and hit Try it out, output will be long but will contain the count, reverse or echo'd input
 
-8. stop the daemon !IMPORTANT!. run: ./scripts/stop.sh in project root directoy or in teriminal where you launched the daemon (after hitting ctrl+c)
+8. stop the daemon !IMPORTANT!. run: ./scripts/stop.sh in project root directory or in terminal where you launched the daemon (after hitting ctrl+c)
 
 - note opening: https://daemon-ipc-api.onrender.com/docs will expose the API therefore opening the same site as running locally
