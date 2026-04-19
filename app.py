@@ -61,7 +61,7 @@ def health():
 
 @app.get("/")
 def index():
-    return FileResponse("static/index.html")
+    return FileResponse(os.path.join(BASE_DIR, "static/index.html"))
 
 @app.post("/api/run")
 def run(req: RunRequest):

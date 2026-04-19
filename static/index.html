@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daemon IPC — Live Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;700&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:        #0a0a0a;
+      --surface:   #111111;
+      --border:    #222222;
+      --green:     #00ff9d;
+      --green-dim: #00ff9d33;
+      --amber:     #ffb800;
+      --red:       #ff4444;
+      --muted:     #444444;
+      --text:      #e0e0e0;
+      --text-dim:  #666666;
+    }
+ 
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+ 
+    html { scroll-behavior: smooth; }
+ 
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'IBM Plex Mono', monospace;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+ 
+    /* ── scanline overlay ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.08) 2px,
+        rgba(0,0,0,0.08) 4px
+      );
+      pointer-events: none;
+      z-index: 1000;
+    }
+ 
+    /* ── header ── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 1.5rem 2.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      animation: fadeDown 0.6s ease both;
+    }
+ 
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+ 
+    .logo-icon {
+      width: 28px;
+      height: 28px;
+      border: 2px solid var(--green);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+ 
+    .logo-icon::after {
+      content: '';
+      width: 8px;
+      height: 8px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+    }
+ 
+    .logo-text {
+      font-size: 0.85rem;
+      font-weight: 500;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--green);
+    }
+ 
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+    }
+ 
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.3s;
+    }
+ 
+    .status-dot.live { background: var(--green); animation: pulse 2s infinite; }
+ 
+    /* ── main layout ── */
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 4rem 2.5rem;
+    }
+ 
+    /* ── hero ── */
+    .hero {
+      margin-bottom: 5rem;
+      animation: fadeUp 0.7s ease 0.1s both;
+    }
+ 
+    .hero-tag {
+      font-size: 0.65rem;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--green);
+      margin-bottom: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+ 
+    .hero-tag::before {
+      content: '//';
+      opacity: 0.5;
+    }
+ 
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      margin-bottom: 1.5rem;
+      color: #fff;
+    }
+ 
+    h1 span {
+      color: var(--green);
+    }
+ 
+    .hero-desc {
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 1rem;
+      line-height: 1.7;
+      color: var(--text-dim);
+      max-width: 560px;
+      margin-bottom: 2.5rem;
+    }
+ 
+    /* ── architecture diagram ── */
+    .arch {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      flex-wrap: wrap;
+      margin-bottom: 5rem;
+      animation: fadeUp 0.7s ease 0.2s both;
+    }
+ 
+    .arch-node {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.9rem;
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      white-space: nowrap;
+      transition: border-color 0.2s, color 0.2s;
+    }
+ 
+    .arch-node.highlight {
+      border-color: var(--green);
+      color: var(--green);
+    }
+ 
+    .arch-arrow {
+      font-size: 0.65rem;
+      color: var(--muted);
+      padding: 0 0.3rem;
+      flex-shrink: 0;
+    }
+ 
+    /* ── terminal demo ── */
+    .terminal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 5rem;
+      animation: fadeUp 0.7s ease 0.3s both;
+    }
+ 
+    .terminal-bar {
+      background: #181818;
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+ 
+    .terminal-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+ 
+    .terminal-dot:nth-child(1) { background: #ff5f57; }
+    .terminal-dot:nth-child(2) { background: #febc2e; }
+    .terminal-dot:nth-child(3) { background: #28c840; }
+ 
+    .terminal-title {
+      margin-left: auto;
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+    }
+ 
+    .terminal-body {
+      padding: 1.5rem;
+    }
+ 
+    /* ── form ── */
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 2fr auto;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      align-items: end;
+    }
+ 
+    .field label {
+      display: block;
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 0.4rem;
+    }
+ 
+    .field select,
+    .field input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.85rem;
+      padding: 0.6rem 0.75rem;
+      outline: none;
+      transition: border-color 0.2s;
+      appearance: none;
+      border-radius: 3px;
+    }
+ 
+    .field select:focus,
+    .field input:focus {
+      border-color: var(--green);
+    }
+ 
+    .field select option {
+      background: var(--bg);
+    }
+ 
+    .run-btn {
+      background: var(--green);
+      color: #000;
+      border: none;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.6rem 1.5rem;
+      cursor: pointer;
+      border-radius: 3px;
+      transition: opacity 0.15s, transform 0.1s;
+      white-space: nowrap;
+      align-self: end;
+    }
+ 
+    .run-btn:hover { opacity: 0.85; }
+    .run-btn:active { transform: scale(0.97); }
+    .run-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+ 
+    /* ── output ── */
+    .output-area {
+      margin-top: 1rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 1rem;
+      min-height: 120px;
+      font-size: 0.8rem;
+      line-height: 1.8;
+      color: var(--text-dim);
+      position: relative;
+      overflow: hidden;
+    }
+ 
+    .output-line {
+      display: flex;
+      gap: 0.75rem;
+      opacity: 0;
+      transform: translateY(4px);
+      animation: lineIn 0.2s ease forwards;
+    }
+ 
+    .output-line .key {
+      color: var(--text-dim);
+      flex-shrink: 0;
+      min-width: 80px;
+    }
+ 
+    .output-line .val { color: var(--text); }
+    .output-line .val.green { color: var(--green); }
+    .output-line .val.amber { color: var(--amber); }
+    .output-line .val.red   { color: var(--red); }
+ 
+    .output-placeholder {
+      color: var(--muted);
+      font-size: 0.75rem;
+    }
+ 
+    .cursor-blink {
+      display: inline-block;
+      width: 8px;
+      height: 1em;
+      background: var(--green);
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+    }
+ 
+    /* ── how it works ── */
+    .section-title {
+      font-size: 0.65rem;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--green);
+      margin-bottom: 2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+ 
+    .section-title::before { content: '//'; opacity: 0.5; }
+ 
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      margin-bottom: 5rem;
+      animation: fadeUp 0.7s ease 0.4s both;
+    }
+ 
+    .step {
+      background: var(--surface);
+      padding: 1.5rem;
+    }
+ 
+    .step-num {
+      font-size: 0.6rem;
+      letter-spacing: 0.2em;
+      color: var(--green);
+      margin-bottom: 0.75rem;
+    }
+ 
+    .step-title {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: #fff;
+      margin-bottom: 0.5rem;
+    }
+ 
+    .step-desc {
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 0.75rem;
+      line-height: 1.6;
+      color: var(--text-dim);
+    }
+ 
+    /* ── footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem 2.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      animation: fadeUp 0.7s ease 0.5s both;
+    }
+ 
+    footer a {
+      color: var(--green);
+      text-decoration: none;
+    }
+ 
+    footer a:hover { text-decoration: underline; }
+ 
+    /* ── animations ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+ 
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+ 
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.4; }
+    }
+ 
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
+ 
+    @keyframes lineIn {
+      to { opacity: 1; transform: translateY(0); }
+    }
+ 
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+ 
+    .spinner {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border: 2px solid var(--green-dim);
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 0.4rem;
+    }
+ 
+    @media (max-width: 600px) {
+      .form-row { grid-template-columns: 1fr 1fr; }
+      .run-btn  { grid-column: 1 / -1; }
+      .arch     { gap: 0.25rem; }
+      header    { flex-direction: column; gap: 1rem; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+ 
+<header>
+  <div class="logo">
+    <div class="logo-icon"></div>
+    <span class="logo-text">Daemon IPC</span>
+  </div>
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">checking...</span>
+  </div>
+</header>
+ 
+<main>
+ 
+  <!-- hero -->
+  <section class="hero">
+    <div class="hero-tag">Systems Programming Demo</div>
+    <h1>Unix IPC<br/>via <span>Named Pipes</span></h1>
+    <p class="hero-desc">
+      A C daemon accepts requests through a well-known FIFO, double-forks isolated
+      worker processes, and executes downstream tasks via <code>execv()</code> —
+      exposed live through a FastAPI layer and this interface.
+    </p>
+  </section>
+ 
+  <!-- architecture -->
+  <div class="arch">
+    <div class="arch-node highlight">Browser</div>
+    <div class="arch-arrow">──▶</div>
+    <div class="arch-node highlight">FastAPI</div>
+    <div class="arch-arrow">──▶</div>
+    <div class="arch-node">FIFO Client</div>
+    <div class="arch-arrow">──▶</div>
+    <div class="arch-node">REQUESTS pipe</div>
+    <div class="arch-arrow">──▶</div>
+    <div class="arch-node">C Daemon</div>
+    <div class="arch-arrow">──▶</div>
+    <div class="arch-node">Worker (fork)</div>
+    <div class="arch-arrow">──▶</div>
+    <div class="arch-node highlight">execv()</div>
+  </div>
+ 
+  <!-- terminal demo -->
+  <div class="terminal">
+    <div class="terminal-bar">
+      <div class="terminal-dot"></div>
+      <div class="terminal-dot"></div>
+      <div class="terminal-dot"></div>
+      <span class="terminal-title">live request executor</span>
+    </div>
+    <div class="terminal-body">
+      <div class="form-row">
+        <div class="field">
+          <label>Command</label>
+          <select id="command">
+            <option value="echo">echo</option>
+            <option value="reverse">reverse</option>
+            <option value="count">count</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Input</label>
+          <input type="text" id="inputText" placeholder="hello world" value="hello world" />
+        </div>
+        <button class="run-btn" id="runBtn" onclick="runCommand()">▶ Run</button>
+      </div>
+ 
+      <div class="output-area" id="output">
+        <span class="output-placeholder">
+          output will appear here <span class="cursor-blink"></span>
+        </span>
+      </div>
+    </div>
+  </div>
+ 
+  <!-- how it works -->
+  <div class="section-title">How it works</div>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">01</div>
+      <div class="step-title">Named FIFO</div>
+      <div class="step-desc">Client writes a unique ID to the well-known <code>REQUESTS</code> pipe. The daemon reads it in a tight loop.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">02</div>
+      <div class="step-title">Double Fork</div>
+      <div class="step-desc">Daemon double-forks to spawn an orphaned worker, fully detached from the daemon's process group.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">03</div>
+      <div class="step-title">Private FIFOs</div>
+      <div class="step-desc">Worker opens <code>clientid.0</code> and <code>clientid.1</code> for bidirectional communication with the client.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">04</div>
+      <div class="step-title">execv()</div>
+      <div class="step-desc">Worker replaces itself with the demo executable via <code>execv()</code>, inheriting the FIFO file descriptors as stdin/stdout.</div>
+    </div>
+  </div>
+ 
+</main>
+ 
+<footer>
+  <span>Built in C + Python · Unix IPC · FastAPI</span>
+  <a href="https://github.com" target="_blank" id="githubLink">View source →</a>
+</footer>
+ 
+<script>
+  // ── health check ──
+  async function checkHealth() {
+    try {
+      const r = await fetch('/api/health');
+      const d = await r.json();
+      const dot  = document.getElementById('statusDot');
+      const text = document.getElementById('statusText');
+      if (d.status === 'ok') {
+        dot.classList.add('live');
+        text.textContent = 'daemon live';
+      } else {
+        text.textContent = 'degraded';
+      }
+    } catch {
+      document.getElementById('statusText').textContent = 'unreachable';
+    }
+  }
+ 
+  checkHealth();
+  setInterval(checkHealth, 10000);
+ 
+  // ── run command ──
+  async function runCommand() {
+    const command   = document.getElementById('command').value;
+    const inputText = document.getElementById('inputText').value.trim();
+    const output    = document.getElementById('output');
+    const btn       = document.getElementById('runBtn');
+ 
+    if (!inputText) {
+      showOutput([{ key: 'error', val: 'input cannot be empty', cls: 'red' }]);
+      return;
+    }
+ 
+    btn.disabled = true;
+    output.innerHTML = `<span class="output-placeholder"><span class="spinner"></span>sending request...</span>`;
+ 
+    const t0 = performance.now();
+ 
+    try {
+      const res  = await fetch('/api/run', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ command, text: inputText }),
+      });
+ 
+      const elapsed = ((performance.now() - t0) / 1000).toFixed(3);
+ 
+      if (!res.ok) {
+        const err = await res.text();
+        showOutput([{ key: 'error', val: err, cls: 'red' }]);
+        return;
+      }
+ 
+      const data = await res.json();
+ 
+      // parse output lines
+      const lines = (data.output || '').trim().split('\n');
+      const rows = [
+        { key: 'status',  val: data.status,  cls: 'green' },
+        { key: 'elapsed', val: elapsed + 's', cls: '' },
+        { key: '─────',   val: '',            cls: '' },
+        ...lines.map(l => ({ key: '>', val: l, cls: l.startsWith('result=') ? 'amber' : '' })),
+      ];
+ 
+      showOutput(rows);
+    } catch (e) {
+      showOutput([{ key: 'error', val: e.message, cls: 'red' }]);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+ 
+  function showOutput(rows) {
+    const output = document.getElementById('output');
+    output.innerHTML = rows.map((r, i) => `
+      <div class="output-line" style="animation-delay:${i * 40}ms">
+        <span class="key">${r.key}</span>
+        <span class="val ${r.cls}">${r.val}</span>
+      </div>
+    `).join('');
+  }
+ 
+  // allow Enter key
+  document.getElementById('inputText').addEventListener('keydown', e => {
+    if (e.key === 'Enter') runCommand();
+  });
+</script>
+ 
+</body>
+</html>
